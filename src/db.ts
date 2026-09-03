@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 
-export const db = new Database('blockchain.db');
+const dbName = process.env.NODE_ENV === 'test' ? ':memory:' : 'blockchain.db';
+export const db = new Database(dbName);
 
 db.pragma('foreign_keys = ON');
 
