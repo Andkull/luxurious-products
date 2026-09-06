@@ -60,4 +60,34 @@ describe('Blockchain Class with SQLite', () => {
     const isValid = luxuryChain.isChainValid();
     expect(isValid).toBe(true);
   });
+
+  it('should reject a transaction if the sender is not the current owner', () => {
+    const invalidTx = {
+      serialNumber: 'ROLEX-123',
+      fromAddress: 'Bob',
+      toAddress: 'Charlie',
+      timestamp: Date.now()
+    };
+
+    expect(() => luxuryChain.addTransaction(invalidTx)).toThrow(
+      /State Validation Failed/
+    );
+  });
+
+  it('should allow a transaction if the sender is the valid current owner', () => {
+    const validTx = {
+      serialNumber: 'ROLEX-123',
+      fromAddress: 'Alice',
+      toAddress: 'Bob',
+      timestamp: Date.now()
+    };
+
+    expect(() => luxuryChain.addTransaction(validTx)).not.toThrow();
+
+    const pendingTx = db.prepare("SELECT * FROM transactions WHERE status = 'PENDING' AND serialNumber = 'ROLEX-123'").get() as DbTransactionRow;
+    
+    expect(pendingTx).toBeDefined();
+    expect(pendingTx.fromAddress).toBe('Alice');
+    expect(pendingTx.toAddress).toBe('Bob');
+  });
 });
