@@ -26,7 +26,9 @@ export class Blockchain {
   public difficulty: number;
 
   constructor() {
-    this.difficulty = process.env.NODE_ENV === 'test' ? 1 : 3;
+    this.difficulty = process.env.NODE_ENV === 'test' 
+  ? 1 
+  : parseInt(process.env.POW_DIFFICULTY || '3', 10);
     this.initializeGenesisBlock();
   }
 
@@ -56,6 +58,20 @@ export class Blockchain {
   }
 
   addTransaction(transaction: Transaction) {
+    const isPending = db.prepare(`
+      SELECT id FROM transactions 
+      WHERE serialNumber = @serialNumber AND status = 'PENDING'
+    `).get({ serialNumber: transaction.serialNumber });
+
+    if (isPending) {
+      throw new Error(`State Validation Failed: Item ${transaction.serialNumber} is currently locked in a pending transaction. Please wait for it to be mined.`);
+    }
+
+    const currentOwner = this.getCurrentOwner(transaction.serialNumber);
+
+    if (currentOwner && currentOwner !== transaction.fromAddress) {
+      throw new Error(`State Validation Failed: ${transaction.fromAddress} does not own ${transaction.serialNumber}. Current owner is ${currentOwner}.`);
+    }
     
     const stmt = db.prepare(`
       INSERT INTO transactions (serialNumber, fromAddress, toAddress, timestamp, status)
@@ -148,5 +164,17 @@ export class Blockchain {
     }
 
     return true; 
+  }
+
+  getCurrentOwner(serialNumber: string): string | null {
+    const row = db.prepare(`
+      SELECT toAddress 
+      FROM transactions 
+      WHERE serialNumber = @serialNumber AND status = 'MINED' 
+      ORDER BY id DESC 
+      LIMIT 1
+    `).get({ serialNumber }) as { toAddress: string } | undefined;
+
+    return row ? row.toAddress : null;
   }
 }
